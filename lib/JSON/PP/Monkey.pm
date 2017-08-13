@@ -10,6 +10,10 @@ use parent qw(JSON::PP);
 use Carp ();
 use Scalar::Util qw(blessed refaddr reftype);
 
+BEGIN { *P_ALLOW_UNKNOWN = *JSON::PP::P_ALLOW_UNKNOWN }
+BEGIN { *_is_bignum = *JSON::PP::_is_bignum }
+BEGIN { *_looks_like_number = *JSON::PP::_looks_like_number }
+
 sub add_fallback {
     my ($self, $case, $cb) = @_;
     push @{$self->{fallbacks}{$case}}, $cb;
@@ -144,10 +148,68 @@ sub as_nonblessed {
         }
     }
 
+    sub value_to_json {
+        my ($self, $value) = @_;
+
+        return 'null' if(!defined $value);
+
+        my $type = ref($value);
+
+        if (!$type) {
+            if (_looks_like_number($value)) {
+                return $value;
+            }
+            return $self->string_to_json($value);
+        }
+        elsif( blessed($value) and  $value->isa('JSON::PP::Boolean') ){
+            return $$value == 1 ? 'true' : 'false';
+        }
+        else {
+            if ((overload::StrVal($value) =~ /=(\w+)/)[0]) {
+                return $self->value_to_json("$value");
+            }
+
+            if ($type eq 'SCALAR' and defined $$value) {
+                return   $$value eq '1' ? 'true'
+                       : $$value eq '0' ? 'false'
+                       : $self->{PROPS}->[ P_ALLOW_UNKNOWN ] ? 'null'
+                       : encode_error("cannot encode reference to scalar");
+            }
+
+            if ( $self->{PROPS}->[ P_ALLOW_UNKNOWN ] ) {
+                if (my $s = $self->{fallbacks}{unknown}) {
+                    for my $cb (@$s) {
+                        if (my ($r) = $self->$cb($value, 'unknown')) {
+
+                            if ( defined $r and ref( $r ) ) {
+                                if ( refaddr( $value ) eq refaddr( $r ) ) {
+                                    encode_error( sprintf(
+                                        "'unknown' fallback (%s) returned same object as was passed instead of a new one",
+                                        $cb
+                                    ) );
+                                }
+                            }
+
+                            return $self->object_to_json($r);
+                        }
+                    }
+                }
+                return 'null';
+            }
+            else {
+                if ( $type eq 'SCALAR' or $type eq 'REF' ) {
+                    encode_error("cannot encode reference to scalar");
+                }
+                else {
+                    encode_error("encountered $value, but JSON can only represent references to arrays or hashes");
+                }
+            }
+
+        }
+    }
+
     BEGIN { *encode_error = *JSON::PP::encode_error }
 }
-
-BEGIN { *_is_bignum = *JSON::PP::_is_bignum }
 
 1;
 
@@ -155,7 +217,7 @@ BEGIN { *_is_bignum = *JSON::PP::_is_bignum }
 
 =head1 NAME
 
-JSON::PP::Monkey – JSON::PP with fallbacks
+JSON::PP::Monkey – JSON::PP with encoding fallbacks
 
 =head1 SYNOPSIS
 
