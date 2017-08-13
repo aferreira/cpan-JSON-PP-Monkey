@@ -10,6 +10,11 @@ use parent qw(JSON::PP);
 use Carp ();
 use Scalar::Util qw(blessed refaddr);
 
+sub add_fallback {
+    my ($self, $case, $cb) = @_;
+    push @{$self->{fallbacks}{$case}}, $cb and return $self;
+}
+
 {
     sub object_to_json {
         my ($self, $obj) = @_;
@@ -46,6 +51,23 @@ use Scalar::Util qw(blessed refaddr);
 
                 my $allow_blessed = $self->get_allow_blessed;
                 if ($allow_blessed) {
+                    if (my $s = $self->{fallbacks}{blessed}) {
+                        for my $cb (@$s) {
+                            if (my ($r) = $self->$cb($obj, 'blessed')) {
+
+                                if ( defined $r and ref( $r ) ) {
+                                    if ( refaddr( $obj ) eq refaddr( $r ) ) {
+                                        encode_error( sprintf(
+                                            "'blessed' fallback (%s) returned same object as was passed instead of a new one",
+                                            $cb
+                                        ) );
+                                    }
+                                }
+
+                                return $self->object_to_json($r);
+                            }
+                        }
+                    }
                     my $as_nonblessed = $self->get_as_nonblessed;
                     return $self->blessed_to_json($obj) if ($as_nonblessed); # will be removed.
                     return 'null';
