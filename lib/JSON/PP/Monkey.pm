@@ -48,6 +48,11 @@ sub convert_as_nonblessed {    # Based on JSON::PP::blessed_to_json
     }
 }
 
+sub convert_with_to_json {
+    return unless $_[1]->can('TO_JSON');
+    return $_[1]->TO_JSON;
+}
+
 # Reimplementation of 'allow_bignum' and 'as_nonblessed'
 
 sub allow_bignum {
@@ -165,6 +170,9 @@ dumping arbitrary Perl data into JSON – see the upcoming
 L<Shell::Perl::Dumper::JSON>.
 
 =head1 CAVEATS
+
+Unlike in C<JSON::PP>, C<allow_bignum> only works if C<allow_blessed>
+is enabled too.
 
 Notice that the order of fallbacks is important:
 
