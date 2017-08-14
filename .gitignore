@@ -1,0 +1,9 @@
+
+*.bak
+.*.swp
+
+/Text-Yeti-Table-*.tar.gz
+/Text-Yeti-Table-*/
+
+/env
+/inc
