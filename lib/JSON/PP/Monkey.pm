@@ -57,12 +57,12 @@ sub _emit_fallback_to_json {
 
 # Helpful fallbacks
 
-sub convert_bignum {
+sub _convert_bignum {
     return unless _is_bignum($_[1]);
     return "$_[1]";
 }
 
-sub convert_as_nonblessed {    # Based on JSON::PP::blessed_to_json
+sub _convert_as_nonblessed {    # Based on JSON::PP::blessed_to_json
     my $obj = $_[1];
     my $reftype = reftype($obj) || '';
     if ($reftype eq 'HASH') {
@@ -76,33 +76,41 @@ sub convert_as_nonblessed {    # Based on JSON::PP::blessed_to_json
     }
 }
 
-sub convert_with_to_json {
+sub _convert_with_to_json {
     return unless $_[1]->can('TO_JSON');
     return $_[1]->TO_JSON;
 }
 
-# Reimplementation of 'allow_bignum' and 'as_nonblessed'
+# Methods 'convert_bignum' and 'convert_as_nonblessed'
 
-sub allow_bignum {
-    my $self = shift->SUPER::allow_bignum(@_);
-    if ($self->get_allow_bignum) {
-        $self->add_fallback('blessed', 'convert_bignum');
-    }
-    else {
-        $self->remove_fallback('blessed','convert_bignum');
-    }
-    return $self;
+BEGIN {
+   my @hidden_properties = qw( allow_bignum as_nonblessed );
+   for my $name (@hidden_properties) {
+       no strict 'refs';
+       *{$name} = *{"get_$name"} =  sub { ... };
+   }
 }
 
-sub as_nonblessed {
+sub convert_blessed {
+    my $self = shift->SUPER::convert_blessed(@_);
+    my $meth = $self->SUPER::get_convert_blessed ? 'add_fallback' : 'remove_fallback';
+    $self->$meth('blessed', '_convert_with_to_json');
+}
+
+sub get_convert_bignum { shift->SUPER::get_allow_bignum }
+
+sub convert_bignum {
+    my $self = shift->SUPER::allow_bignum(@_);
+    my $meth = $self->SUPER::get_allow_bignum ? 'add_fallback' : 'remove_fallback';
+    $self->$meth('blessed', '_convert_bignum');
+}
+
+sub get_convert_as_nonblessed { shift->SUPER::get_as_nonblessed }
+
+sub convert_as_nonblessed {
     my $self = shift->SUPER::as_nonblessed(@_);
-    if ($self->get_as_nonblessed) {
-        $self->add_fallback('blessed', 'convert_as_nonblessed');
-    }
-    else {
-        $self->remove_fallback('blessed','convert_as_nonblessed');
-    }
-    return $self;
+    my $meth = $self->SUPER::get_as_nonblessed ? 'add_fallback' : 'remove_fallback';
+    $self->$meth('blessed', '_convert_as_nonblessed');
 }
 
 ###
