@@ -229,44 +229,105 @@ JSON::PP::Monkey – JSON::PP with encoding fallbacks
 
     use JSON::PP::Monkey;
 
-    my $json = JSON::PP::Monkey->new->utf8->allow_blessed->collapse_blessed(0)->convert_blessed;
-    # works as JSON::PP->new->utf8->convert_blessed;
+    my $json = JSON::PP::Monkey->new->utf8->pretty
+                 ->allow_blessed->add_fallback('blessed', sub { +{ __BLESSED_ => "$_[1]" } })
+                 ->allow_unknown->add_fallback('unknown', sub { +{ __UNKNOWN_ => "$_[1]" } })
 
-    my $json = JSON::PP::Monkey->new->utf8->allow_blessed->collapse_blessed(0)->convert_bignum;
-    # works as JSON::PP->new->utf8->allow_bignum;
-
-    my $json = JSON::PP::Monkey->new->utf8->allow_blessed->collapse_blessed(0)->convert_bignum;
+    $json->encode({ active => \1, io => \*STDOUT, foo => bless({}, 'foo')});
+    # {
+    #    "foo" : {
+    #       "__BLESSED_" : "foo=HASH(0x7fda11bc0fc8)"
+    #    },
+    #    "active" : true,
+    #    "io" : {
+    #       "__UNKNOWN_" : "GLOB(0x7fda11029518)"
+    #    }
+    # }
 
 =head1 DESCRIPTION
 
-This is an experiment with a JSON encoder that may
-apply fallback conversions to unknowns and blessed objects.
+This is an experiment with a JSON encoder that can
+apply fallback conversions to blessed objects and unknowns.
 
 The primary reason it has been created was to allow
 dumping arbitrary Perl data into JSON.
 
 =head1 CAVEATS
 
-Unlike in C<JSON::PP>, C<allow_bignum> only works if C<allow_blessed>
-is enabled too.
+=head2 REVISED API
+
+Unlike C<JSON::PP>, C<JSON::XS>, C<Cpanel::JSON::XS>, L</"allow_blessed">
+must be enabled before blessed objects can be converted to JSON
+by invoking C<TO_JSON> or stringifying bignums.
+
+    # { "x": <JSON encoding of $foo->TO_JSON> }
+    JSON::PP::Monkey->new->allow_blessed->convert_blessed->encode({x => $foo});
+
+    # dies - allow_blessed is not enabled
+    JSON::PP::Monkey->new->convert_blessed->encode({x => $foo});
+
+    # { "x": "999" }
+    JSON::PP::Monkey->new->allow_blessed->convert_bignum->encode({x => Math::BigInt->new('999')});
+
+    # dies - allow_blessed is not enabled
+    JSON::PP::Monkey->new->convert_bignum->encode({x => $foo});
+
+Another difference is that the fallback conversion of objects into C<'null'>
+must be disabled explicitly (with L</"collapse_blessed">) if it is unwanted. So
+
+    JSON::PP::Monkey->new->allow_blessed->collapse_blessed(0)->convert_blessed;
+
+is the equivalent of
+
+    JSON::PP->new->convert_blessed;
+
+in the sense they will convert objects with C<TO_JSON> methods into JSON
+and bail on everything else.
+
+The behavior of L</"allow_unknown"> and L</"collapse_unknown"> is analogous.
+
+These API changes have been made to provide a more consistent behavior.
+
+=over 4
+
+=item *
+
+if objects will be encoded, C<allow_blessed> must be enabled before any
+fallback (installed with L</"add_fallback">, L</"convert_blessed">, or
+L</"convert_bignum">) can be applied.
+
+=item *
+
+if objects will be encoded but the fallback conversion into C<"null">
+is unwanted, it should be disabled with L</"collapse_blessed">.
+
+=item *
+
+if unknowns will be encoded, C<allow_unknown> must be enabled before any
+fallback can be applied
+
+=item *
+
+if unknowns will be encoded but the fallback conversion into C<"null">
+is unwanted, it should be disabled with L</"collapse_unknown">.
+
+=back
+
+=head2 FALLBACK ORDER
 
 Notice that the order of fallbacks is important:
 
-    $json = JSON::PP->new->utf8->allow_blessed->allow_bignum->as_unblessed;
+    $json = JSON::PP->new->utf8->allow_blessed->convert_bignum->convert_blessed;
 
-works as expected – bignums converted to their stringified values
-and other blessed objects encoded as their underlying data structure.
-But
+will apply stringification to bignums before trying to check for C<TO_JSON>
+methods. While
 
-    $json = JSON::PP->new->utf8->allow_blessed->as_unblessed->allow_bignum;
+    $json = JSON::PP->new->utf8->allow_blessed->convert_blessed->convert_bignum;
 
-will convert all blessed objects (including bignums) into their underlying
-data structures. That happens because the "as_unblessed" fallback
-is a catch-all fallback, instead of being selective as the "allow_bignum" fallback.
+will check for C<TO_JSON> methods (and apply them) before considering the
+stringification of bignums.
 
 =head1 METHODS
-
-all of JSON::PP and plus
 
 =head2 allow_blessed
 
