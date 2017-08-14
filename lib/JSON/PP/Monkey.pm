@@ -147,11 +147,15 @@ sub convert_as_nonblessed {
                     if (my ($r) = $self->_emit_fallback_to_json('blessed', $obj)) {
                         return $r;
                     }
+                    else {
+                        encode_error( sprintf("encountered object '%s', but no fallback "
+                            . "for 'blessed' was matched", $obj )
+                        );
+                    }
                 }
-                encode_error( sprintf("encountered object '%s', but neither allow_blessed "
-                    . "nor convert_blessed settings are enabled", $obj)
+                encode_error( sprintf("encountered object '%s', but allow_blessed "
+                    . "setting is not enabled", $obj)
                 );
-                # either allow_blessed was not enabled, or no fallback applied
             }
             else {
                 return $self->value_to_json($obj);
