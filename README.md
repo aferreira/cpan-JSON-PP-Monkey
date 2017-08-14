@@ -1,2 +1,2 @@
 
-JSON::PP::Monkey - JSON::PP with fallbacks
+JSON::PP::Monkey - JSON::PP with encoding fallbacks
