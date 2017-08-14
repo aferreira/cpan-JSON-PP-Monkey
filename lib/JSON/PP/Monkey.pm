@@ -131,21 +131,6 @@ sub convert_as_nonblessed {
 
                 return $self->value_to_json($obj) if ( $obj->isa('JSON::PP::Boolean') );
 
-                my $convert_blessed = $self->get_convert_blessed;
-                if ( $convert_blessed and $obj->can('TO_JSON') ) {
-                    my $result = $obj->TO_JSON();
-                    if ( defined $result and ref( $result ) ) {
-                        if ( refaddr( $obj ) eq refaddr( $result ) ) {
-                            encode_error( sprintf(
-                                "%s::TO_JSON method returned same object as was passed instead of a new one",
-                                ref $obj
-                            ) );
-                        }
-                    }
-
-                    return $self->object_to_json( $result );
-                }
-
                 my $allow_blessed = $self->get_allow_blessed;
                 if ($allow_blessed) {
                     return $self->_emit_fallback_to_json('blessed', $obj);
