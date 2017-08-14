@@ -31,6 +31,29 @@ sub remove_fallback {
     return $self;
 }
 
+sub _emit_fallback_to_json {
+    my ($self, $case, $value) = @_;
+
+    if (my $s = $self->{fallbacks}{$case}) {
+        for my $cb (@$s) {
+            if (my ($r) = $self->$cb($value, $case)) {
+
+                if ( defined $r and ref( $r ) ) {
+                    if ( refaddr( $value ) eq refaddr( $r ) ) {
+                        encode_error( sprintf(
+                            "'%s' fallback (%s) returned same object as was passed instead of a new one",
+                            $case, $cb
+                        ) );
+                    }
+                }
+
+                return $self->object_to_json($r);
+            }
+        }
+    }
+    return 'null';
+}
+
 # Helpful fallbacks
 
 sub convert_bignum {
@@ -116,24 +139,7 @@ sub as_nonblessed {
 
                 my $allow_blessed = $self->get_allow_blessed;
                 if ($allow_blessed) {
-                    if (my $s = $self->{fallbacks}{blessed}) {
-                        for my $cb (@$s) {
-                            if (my ($r) = $self->$cb($obj, 'blessed')) {
-
-                                if ( defined $r and ref( $r ) ) {
-                                    if ( refaddr( $obj ) eq refaddr( $r ) ) {
-                                        encode_error( sprintf(
-                                            "'blessed' fallback (%s) returned same object as was passed instead of a new one",
-                                            $cb
-                                        ) );
-                                    }
-                                }
-
-                                return $self->object_to_json($r);
-                            }
-                        }
-                    }
-                    return 'null';
+                    return $self->_emit_fallback_to_json('blessed', $obj);
                 }
                 encode_error( sprintf("encountered object '%s', but neither allow_blessed "
                     . "nor convert_blessed settings are enabled", $obj)
@@ -177,24 +183,7 @@ sub as_nonblessed {
             }
 
             if ( $self->{PROPS}->[ P_ALLOW_UNKNOWN ] ) {
-                if (my $s = $self->{fallbacks}{unknown}) {
-                    for my $cb (@$s) {
-                        if (my ($r) = $self->$cb($value, 'unknown')) {
-
-                            if ( defined $r and ref( $r ) ) {
-                                if ( refaddr( $value ) eq refaddr( $r ) ) {
-                                    encode_error( sprintf(
-                                        "'unknown' fallback (%s) returned same object as was passed instead of a new one",
-                                        $cb
-                                    ) );
-                                }
-                            }
-
-                            return $self->object_to_json($r);
-                        }
-                    }
-                }
-                return 'null';
+                return $self->_emit_fallback_to_json('unknown', $value);
             }
             else {
                 if ( $type eq 'SCALAR' or $type eq 'REF' ) {
