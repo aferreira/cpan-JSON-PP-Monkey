@@ -52,8 +52,19 @@ sub _emit_fallback_to_json {
             }
         }
     }
-    return 'null';
+    return 'null' if $self->_get_collapse_to_null($case);
+    return;
 }
+
+# $json->_collapse_to_null($case, $enable);
+sub _collapse_to_null { $_[0]->{"collapse_$_[1]"} = @_ > 2 ? !!$_[2] : !!1; $_[0] }
+sub _get_collapse_to_null { $_[0]->{"collapse_$_[1]"} // !!1 }
+
+sub collapse_blessed { shift->_collapse_to_null( 'blessed', @_ ) }
+sub get_collapse_blessed { $_[0]->_get_collapse_to_null('blessed') }
+
+sub collapse_unknown { shift->_collapse_to_null( 'unknown', @_ ) }
+sub get_collapse_unknown { $_[0]->_get_collapse_to_null('unknown') }
 
 # Helpful fallbacks
 
@@ -133,11 +144,14 @@ sub convert_as_nonblessed {
 
                 my $allow_blessed = $self->get_allow_blessed;
                 if ($allow_blessed) {
-                    return $self->_emit_fallback_to_json('blessed', $obj);
+                    if (my ($r) = $self->_emit_fallback_to_json('blessed', $obj)) {
+                        return $r;
+                    }
                 }
                 encode_error( sprintf("encountered object '%s', but neither allow_blessed "
                     . "nor convert_blessed settings are enabled", $obj)
                 );
+                # either allow_blessed was not enabled, or no fallback applied
             }
             else {
                 return $self->value_to_json($obj);
@@ -177,9 +191,11 @@ sub convert_as_nonblessed {
             }
 
             if ( $self->{PROPS}->[ P_ALLOW_UNKNOWN ] ) {
-                return $self->_emit_fallback_to_json('unknown', $value);
+                if (my ($r) = $self->_emit_fallback_to_json('unknown', $value)) {
+                    return $r;
+                }
             }
-            else {
+            {
                 if ( $type eq 'SCALAR' or $type eq 'REF' ) {
                     encode_error("cannot encode reference to scalar");
                 }
