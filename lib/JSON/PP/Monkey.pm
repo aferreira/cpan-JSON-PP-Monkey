@@ -5,6 +5,7 @@ use 5.10.1;
 use strict;
 use warnings;
 
+use JSON::PP 2.94;
 use parent qw(JSON::PP);
 
 use Carp ();
