@@ -188,15 +188,18 @@ sub convert_as_nonblessed {
             }
 
             if ($type eq 'SCALAR' and defined $$value) {
-                return   $$value eq '1' ? 'true'
-                       : $$value eq '0' ? 'false'
-                       : $self->{PROPS}->[ P_ALLOW_UNKNOWN ] ? 'null'
-                       : encode_error("cannot encode reference to scalar");
+                return 'true'  if $$value eq '1';
+                return 'false' if $$value eq '0';
             }
 
             if ( $self->{PROPS}->[ P_ALLOW_UNKNOWN ] ) {
                 if (my ($r) = $self->_emit_fallback_to_json('unknown', $value)) {
                     return $r;
+                }
+                else {
+                    encode_error( sprintf("encountered reference '%s', but no fallback "
+                       . "for 'unknown' was matched", $value )
+                    );
                 }
             }
             {
