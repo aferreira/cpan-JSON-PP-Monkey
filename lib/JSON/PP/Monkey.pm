@@ -227,15 +227,23 @@ JSON::PP::Monkey – JSON::PP with encoding fallbacks
 
 =head1 SYNOPSIS
 
+    use JSON::PP::Monkey;
+
+    my $json = JSON::PP::Monkey->new->utf8->allow_blessed->collapse_blessed(0)->convert_blessed;
+    # works as JSON::PP->new->utf8->convert_blessed;
+
+    my $json = JSON::PP::Monkey->new->utf8->allow_blessed->collapse_blessed(0)->convert_bignum;
+    # works as JSON::PP->new->utf8->allow_bignum;
+
+    my $json = JSON::PP::Monkey->new->utf8->allow_blessed->collapse_blessed(0)->convert_bignum;
+
 =head1 DESCRIPTION
 
 This is an experiment with a JSON encoder that may
-apply fallback conversions to non-refs, unknowns
-and blessed objects.
+apply fallback conversions to unknowns and blessed objects.
 
 The primary reason it has been created was to allow
-dumping arbitrary Perl data into JSON – see the upcoming
-L<Shell::Perl::Dumper::JSON>.
+dumping arbitrary Perl data into JSON.
 
 =head1 CAVEATS
 
@@ -260,18 +268,87 @@ is a catch-all fallback, instead of being selective as the "allow_bignum" fallba
 
 all of JSON::PP and plus
 
+=head2 allow_blessed
+
+    $json = $json->allow_blessed;
+    $json = $json->allow_blessed($enable);
+
+If enabled, allows to encode blessed references (or objects)
+via the current C<'blessed'> fallbacks or into C<'null'>
+(if L</"collapse_blessed"> is enabled).
+
+Defaults to disabled.
+
+=head2 allow_unknown
+
+    $json = $json->allow_unknown;
+    $json = $json->allow_unknown($enable);
+
+If enabled, allows to encode unknown references
+via the current C<'unknown'> fallbacks or into C<'null'>
+(if L</"collapse_unknown"> is enabled).
+
+Defaults to disabled.
+
+=head2 collapse_blessed
+
+    $json = $json->collapse_blessed;
+    $json = $json->collapse_blessed($enable);
+
+If L</"allow_blessed"> is enabled, an object is encoded into
+C<'null'> if no C<'blessed'> fallback applied.
+
+Defaults to enabled. Only has effect if C<"allow_blessed"> is enabled.
+
+=head2 collapse_unknown
+
+    $json = $json->collapse_unknown;
+    $json = $json->collapse_unknown($enable);
+
+If L</"allow_unknown"> is enabled, an unknown is encoded into
+C<'null'> if no C<'unknown'> fallback applied.
+
+Defaults to enabled. Only has effect if C<"allow_unknown"> is enabled.
+
+=head2 convert_blessed
+
+    $json = $json->convert_blessed;
+
+Add a C<"blessed"> fallback which applies to objects which
+have a C<"TO_JSON"> method. Equivalent to
+
+   $json = $json->add_fallback('blessed', sub {
+       return unless $_[1]->can('TO_JSON');
+       return $_[1]->TO_JSON;
+   });
+
+Only has effect if C<"allow_blessed"> is enabled.
+
+=head2 convert_bignum
+
+    $json = $json->convert_bignum;
+
+Add a C<"blessed"> fallback which applies to objects which
+are L<Math::BigInt> or L<Math::BigFloat>. Equivalent to
+
+   $json = $json->add_fallback('blessed', sub {
+       return unless $_[1]->isa('Math::BigInt') || $_[1]->isa('Math::BigFloat');
+       return "$_[1]"
+   });
+
+Only has effect if C<"allow_blessed"> is enabled.
+
 =head2 add_fallback
 
-    $json = $json->add_fallback($case, $cb);
-    $json = $json->add_fallback(\@case, $cb);
+    $json = $json->add_fallback('blessed', $cb);
+    $json = $json->add_fallback('unknown', $cb);
 
-Add fallback conversions to be applied in the following cases
+Add fallback conversions to be applied if:
 
-    a non-ref is found and "allow_nonref" is enabled
-    an unknown is found and "allow_unknown" is enabled
     a blessed ref is found and "allow_blessed" is enabled
+    an unknown is found and "allow_unknown" is enabled
 
-C<$case> should be one of C<'nonref'>, C<'unknonwn'> or C<'blessed'>.
+C<$case> should be one of C<'blessed'> or C<'unknown'>.
 
 C<$cb> is a subroutine which expects two arguments
 
@@ -281,16 +358,19 @@ C<$cb> is a subroutine which expects two arguments
     }
 
 Fallback subroutines are evaluated in list context.
+Their return is interpreted as below.
 
 =over 4
 
 =item *
 
-empty list - means try next fallback
+a non-empty list means the first element converted to JSON
+will be the encoding result
 
 =item *
 
-non-empty list - convert first element to JSON
+an empty list means the fallback did not match,
+and the next one should be tried
 
 =back
 
