@@ -1,6 +1,7 @@
 
 package JSON::PP::Monkey;
 
+# ABSTRACT: JSON::PP with encoding fallbacks
 use 5.10.1;
 use strict;
 use warnings;
@@ -221,10 +222,6 @@ sub convert_as_nonblessed {
 
 =encoding utf8
 
-=head1 NAME
-
-JSON::PP::Monkey – JSON::PP with encoding fallbacks
-
 =head1 SYNOPSIS
 
     use JSON::PP::Monkey;
@@ -438,3 +435,5 @@ and the next one should be tried
 =head1 remove_fallback
 
     $json = $json->remove_fallback($case, $cb);
+
+=cut
